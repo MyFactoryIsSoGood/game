@@ -1,35 +1,30 @@
 import time
 
-from abc import ABC, abstractmethod
 import pygame
 from graphics import Screen, CELL_SIZE
 from random import randint
 
-WIDTH_PX = 600
+WIDTH_PX = 1000
 HEIGHT_PX = 600
 FOOD_POS_OFFSET = CELL_SIZE * 0.2
-INIT_ENT = 30
-INIT_FOOD = 200
+INIT_ENT = 20
+INIT_FOOD = 1500
+
+AGE_LIMIT = 120
+
+FOOD_COST = 15
+ORGANIC_COST = 43
+MOVE_COST = 1
+
+PREY_START_ENERGY = 20
+PREY_ENERGY_LIMIT = 50
+PREY_CHILD_COST = 20
+
+PREDATOR_START_ENERGY = 20
+PREY_CHILD_COST = 20
 
 
-class Animal(ABC):
-    energy_limit = 60
-
-    @abstractmethod
-    def __repr__(self):
-        return 'String'
-
-    @abstractmethod
-    def pass_epoch(self, session):
-        pass
-
-    @abstractmethod
-    def calculate_move(self, field):
-        pass
-
-    @abstractmethod
-    def __init__(self):
-        pass
+class Animal():
 
     def die(self, session):
         self.alive = False
@@ -51,39 +46,39 @@ class Animal(ABC):
         session.field.empty.append((self.x_pos, self.y_pos))
         self.x_pos += deltas[0]
         self.y_pos += deltas[1]
-        self.energy -= 1
+        self.energy -= MOVE_COST
         if isinstance(session.field.canvas[self.y_pos][self.x_pos], Food):
             session.field.canvas[self.y_pos][self.x_pos].eat()
             if session.field.canvas[self.y_pos][self.x_pos].organic:
-                self.energy += 22
+                self.energy += ORGANIC_COST
             else:
-                self.energy += 10
+                self.energy += FOOD_COST
         session.field.canvas[self.y_pos][self.x_pos] = self
-
-    @abstractmethod
-    def reproduce(self, field):
-        pass
 
 
 class Prey(Animal):
+    age_limit = AGE_LIMIT
+
     def __repr__(self):
         return 'P'
 
     def __init__(self, x_pos, y_pos):
+        self.age = 0
         self.x_pos = x_pos
         self.y_pos = y_pos
-        self.energy = 30
+        self.energy = PREY_START_ENERGY
         self.alive = True
 
     def pass_epoch(self, session):
+        self.age += 1
         deltas = self.calculate_move(session.field)
         self.move(deltas, session)
         if self.energy == 0:
             self.die(session)
-        if self.energy >= self.energy_limit:
-            self.reproduce(session.field)
-        session.foods = [food for food in session.foods if not food.eaten]
-        session.entities = [ent for ent in session.entities if ent.alive]
+        if self.age >= self.age_limit:
+            self.die(session)
+        if self.energy >= PREY_ENERGY_LIMIT:
+            self.reproduce(session)
 
     def calculate_move(self, field):
         deltas = [0, 0]
@@ -102,13 +97,12 @@ class Prey(Animal):
                 (sel_x - self.x_pos) / abs(sel_x - self.x_pos))
             deltas[1] = 0 if self.y_pos == sel_y else int(
                 (sel_y - self.y_pos) / abs(sel_y - self.y_pos))
-
         else:
             deltas = [randint(-1, 1), randint(-1, 1)]
             deltas = self.check_edges(deltas)
         counter = 0
         while isinstance(field.canvas[self.y_pos + deltas[1]][self.x_pos + deltas[0]], Prey):
-            if counter == 5:
+            if counter == 15:
                 deltas = [0, 0]
                 break
             deltas = [randint(-1, 1), randint(-1, 1)]
@@ -116,30 +110,36 @@ class Prey(Animal):
             counter += 1
         return deltas
 
-    def reproduce(self, field):
+    def reproduce(self, session):
         selected = []
         for row in range(self.y_pos - 1, self.y_pos + 1 + 1):
             for cell in range(self.x_pos - 1, self.x_pos + 1 + 1):
                 if (HEIGHT_PX // CELL_SIZE) > row >= 0 and (
                         WIDTH_PX // CELL_SIZE) > cell >= 0 and (row != self.y_pos and cell != self.x_pos):
-                    if field.canvas[row][cell] == '':
+                    if session.field.canvas[row][cell] == '':
                         sel_x = cell
                         sel_y = row
                         selected.append((sel_x, sel_y))
         if selected:
             sel_x, sel_y = selected[randint(0, len(selected) - 1)]
             new = Prey(sel_x, sel_y)
-            field.canvas[new.y_pos][new.x_pos] = new
+            session.field.canvas[new.y_pos][new.x_pos] = new
+            self.energy -= PREY_CHILD_COST
+        else:
+            self.die(session)
 
 
 class Predator(Animal):
+    age_limit = AGE_LIMIT
+
     def __repr__(self):
         return 'X'
 
     def __init__(self, x_pos, y_pos):
+        self.age = 0
         self.x_pos = x_pos
         self.y_pos = y_pos
-        self.energy = 20
+        self.energy = PREDATOR_START_ENERGY
         self.alive = True
 
     def pass_epoch(self, session):
