@@ -1,6 +1,11 @@
 import pygame
 
-CELL_SIZE = 10
+WIDTH_PX = 600  # Размеры экрана
+HEIGHT_PX = 600
+
+CELL_SIZE = 6   # Размеры клеток и еды
+FOOD_POS_OFFSET = CELL_SIZE * 0.2
+
 FPS = 60
 
 class Screen():
